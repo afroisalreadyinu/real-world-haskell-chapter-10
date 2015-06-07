@@ -43,9 +43,9 @@ instance Show Greymap where
 ```
 
 Given a file in PGM format, how should we read it into memory? Since
-the file contains mostly binary data, we can't use the Prelude methods
-that read a file into a string. Instead, we should read the file
-contents into a
+the file contains mostly binary data, we can't (or shouldn't) use the
+Prelude methods that read a file into a string. Instead, we should
+read the file contents into a
 [`Data.ByteString.Lazy.ByteString`](https://hackage.haskell.org/package/bytestring-0.9.1.5/docs/Data-ByteString-Lazy.html#t:ByteString)
 . The methods to do that, and also many other methods to deal with
 binary data, are in two modules:
@@ -66,8 +66,8 @@ result of the `show` call on the Greymap parse result.
 
 Let's have a look at how the parsing is carried out. The parser has to
 look for three kinds of data: header, integers, and the image
-bytes. These are done with the matchHeader, getNat (for natural
-number), and getBytes methods. Let's have a look at the first one:
+bytes. These are done with the `matchHeader`, `getNat` (for natural
+number), and `getBytes` methods. Here's the `matchHeader` function:
 
 ```haskell
 matchHeader :: L.ByteString -> L.ByteString -> Maybe L.ByteString
@@ -81,12 +81,14 @@ matchHeader prefix str
 Keep in mind that `L.ByteString` here is the
 [`Data.ByteString.Lazy.ByteString`](https://hackage.haskell.org/package/bytestring-0.9.1.5/docs/Data-ByteString-Lazy.html#t:ByteString)
 data type. The above function can be used to check whether a
-ByteString starts with the given prefix, returning Nothing if not. If
-it does, the prefix and any following whitespace is dropped (using
+ByteString starts with the given prefix, returning `Nothing` if
+not. If it does, the prefix and any following whitespace is dropped
+(using
 [`Data.ByteString.Lazy.Char8.dropWhile`](https://hackage.haskell.org/package/bytestring-0.9.1.7/docs/Data-ByteString-Lazy-Char8.html#v:dropWhile)
-and `isSpace`), and returned with a Just. Observe that the second
-argument of this function is also a ByteString; we will see later how
-a string can be packed appropriately.
+and `isSpace`), and returned with a `Just`. Observe that the second
+argument of this function is also a `ByteString`; we will see later
+how a string can be packed into a `ByteString` so that it can be
+passed to this function appropriately.
 
 The next function is for matching an integer:
 
@@ -103,10 +105,10 @@ This function does something very similar to the previous one; it
 picks the piece of interesting data from the start of the string,
 using the
 [`Data.ByteString.Lazy.Char8.readInt`](https://hackage.haskell.org/package/bytestring-0.9.1.7/docs/Data-ByteString-Lazy-Char8.html#25)
-function. In the case of error (readInt returns Nothing or number is
-less than 0), Nothing is returned. In case of success, the parsed
-number and the rest of the ByteString are packed into a tuple and
-returned with Just.
+function. In the case of error (`readInt` returns `Nothing` if number
+is less than 0), `Nothing` is returned. In case of success, the parsed
+number and the rest of the `ByteString` are packed into a tuple and
+returned as a `Just`.
 
 The last function that fetches bytes, `getBytes`, is different in that
 it takes as an argument how many bytes to read. This is computed from
@@ -122,28 +124,29 @@ getBytes n str = let count           = fromIntegral n
                     else Just both
 ```
 
-`getBytes` splits the ByteString into a prefix of the given size and
+`getBytes` splits the `ByteString` into a prefix of the given size and
 the rest using
 [`Data.ByteString.Lazy.splitAt`](https://hackage.haskell.org/package/bytestring-0.9.1.7/docs/Data-ByteString-Lazy.html#v:splitAt). The
 size of the prefix (determined using
 [`Data.ByteString.Lazy.length`](https://hackage.haskell.org/package/bytestring-0.9.1.7/docs/Data-ByteString-Lazy.html#v:length)
 is compared to the count argument, and if it is smaller, which means
-that the ByteString was not big enough, Nothing is
+that the `ByteString` was not big enough, `Nothing` is
 returned. Otherwise, the tuple of the prefix and rest data is
 returned.
 
 The parsing function that uses these matchers is very
 straightforward. It applies the matchers consequently, returning
-Nothing if one of them returns Nothing, otherwise ending with the
-Greymap instance that packs the data that was parsed.
+`Nothing` if one of them returns `Nothing`, otherwise ending with the
+`Greymap` instance that packs the data that was parsed.
 [`Data.ByteString.Lazy.Char8`](https://hackage.haskell.org/package/bytestring-0.9.1.7/docs/Data-ByteString-Lazy-Char8.html#v:pack)
-is used to turn the PGM prefix P5 into a ByteString, passing the
-result into `matchHeader`. If the return value is Nothing, parsing
-ends. Otherwise, the returned rest ByteString is destructured from the
-Just, and fed to `getNat` to fetch the width. The parsing goes on like
-this, as the ByteString is consumed piece by piece, and the parsed
-data is gathered in the nested function scopes. If we run the command
-`pgm1 test.pgm` on the command line, here's the output we should see:
+is used to turn the PGM prefix P5 into a `ByteString`, passing the
+result into `matchHeader`. If the return value is `Nothing`, parsing
+ends. Otherwise, the returned rest `ByteString` is destructured from
+the `Just`, and fed to `getNat` to fetch the width. The parsing goes
+on like this, as the ByteString is consumed piece by piece, and the
+parsed data is gathered in the nested function scopes. If we run the
+command `./pgm1 test.pgm` on the command line, here's the output we
+should see:
 
     Greymap 640x480 255
 
@@ -153,10 +156,10 @@ As straightforward as the parsing function is, it's not good
 code. It's very repetitive, would be difficult to change and adapt to
 any variations in file format, does not offer abstraction, and looks
 plain ugly. The first step in refactoring the parsing function is
-factoring out the chaining, where Nothing from a matching function
-leads to exit, whereas a Just value leads to the contents getting
-passed on to the next step. This is done using a function `>>?` that
-encapsulates this logic:
+factoring out the chaining, where `Nothing` from a matching function
+leads to exit, whereas a `Just` value leads to the contents getting
+passed on to the next step. This is done using a binary operator `>>?`
+that encapsulates this logic:
 
 ```haskell
 (>>?) :: Maybe a -> (a -> Maybe b) -> Maybe b
@@ -164,7 +167,7 @@ Nothing >>? _ = Nothing
 Just v  >>? f = f v
 ```
 
-Observe that this is an infix function, and it's left associative like
+Observe that this is an infix function, and it's left-associative like
 any other function, so `a >>? b >>? c` is equivalent to `(a >>?  b)
 >>? c`. The parsing function that uses this combination operator looks
 like this:
@@ -196,35 +199,35 @@ skipSpace (a, s) = Just (a, L8.dropWhile isSpace s)
 Also pay attention to the `(getNat . snd)` combination, which serves
 to pick the second element of the tuple returned by skipSpace and feed
 it to `getNat`. The execution of the chained functions built by the
-parseP5_take2 method follows from top to bottom in a wrapped
-fashion. That is, the last line is the outermost function application;
-as the chain unfolds from the first function on, if one of the
-functions returns Nothing, that is passed on to the end.
+`parseP5_take2` method follows from top to bottom in a wrapped
+fashion. That is, the last line is the outermost function application.
+As the chain unfolds from the first function on, if one of the
+functions returns `Nothing`, that is passed on to the end.
 
-There is one very tricky thing about parseP5_take2, though. In
-parseP5, the parsed integer values (width, height, and maxGrey) are
-stored in the closures of successive function calls. At first
-impression, the same thing should happen within parseP5_take2, since
-there is no explicit management of these variables, but the
+There is one very tricky thing about `parseP5_take2`, though. In
+`parseP5`, the parsed integer values (`width`, `height`, and
+`maxGrey`) are stored in the closures of successive function calls. At
+first impression, the same thing should happen within parseP5_take2,
+since there is no explicit management of these variables, but the
 indentation tells us that the lambdas are what get chained. But these
 lambdas have separate function contexts, so how are they supposed to
 contribute to the common closure? They can't and they don't; it's not
 the lambdas that are getting chained, but the function calls within
-the lambdas; you can see this more clearly if you wrap one of the
-lambdas in paranthesis (e.g. the one on line 53) and try to compile
+the lambdas. You can see this more clearly if you wrap one of the
+lambdas in paranthesis (e.g. the one on line 54) and try to compile
 again, which returns the following error:
 
 ```
-ulas@kittie-2:~/Documents/documents/notes/for_blog/haskell [master*]$ ghc pgm2.hs
+$ ghc pgm2.hs
 [1 of 1] Compiling Main             ( pgm2.hs, pgm2.o )
 
-pgm2.hs:57:16: Not in scope: ‘width’
+pgm2.hs:58:16: Not in scope: ‘width’
 
-pgm2.hs:58:35: Not in scope: ‘width’
+pgm2.hs:59:35: Not in scope: ‘width’
 ```
 
-Each lambda is a wrapper around the rest of the function. The correct
-(or rather more truthful) indentation would be the following:
+Each lambda is a wrapper around the rest of `parseP5_take2`. The
+correct (or rather more truthful) indentation would be the following:
 
 ```haskell
 parseP5_take2_truthful :: L.ByteString -> Maybe (Greymap, L.ByteString)
@@ -241,15 +244,15 @@ parseP5_take2_truthful s =
             \(bitmap, s) -> Just (Greymap width height maxGrey bitmap, s)
 ```
 
-Which doesn't look as nice as the previous one.
+which doesn't look as nice as the previous one.
 
 Since the second variation does not really solve the problem of
 encapsulating parse state, and is also misguiding in the way it's
 built, time for a third variation.
 
-In this third variation, the parse state is handily packed inside an
-algebraic type named ParseState that contians the complete ByteString
-and the current offset:
+In this third variation, the parse state is packed inside an algebraic
+type named `ParseState` that contains the complete `ByteString` and
+the current offset:
 
 ```haskell
 data ParseState = ParseState {
@@ -258,14 +261,14 @@ data ParseState = ParseState {
     } deriving (Show)
 ```
 
-The parsing function will take a ParseSTate with the ByteString and
-the offset set to 0, returning an `Either String (a, ParseState)`. The
-question is how to encapsulate the parsing steps. The authors use a
-newtype declaration to achieve this. This is a surprise move, as there
-was no example of putting a function inside a newtype constructor, but
-given that Haskell is a functional language, it's not so
-surprising. Here's a sample that you can copy-paste into ghci to help
-you understand it:
+The parsing function will take a `ParseState` with the `ByteString`
+and the offset set to 0, returning an `Either String (a,
+ParseState)`. The question is how to encapsulate the parsing
+steps. The authors use a newtype declaration to achieve this. This is
+a surprise move, as there was no example of putting a function inside
+a newtype constructor, but given that Haskell is a functional
+language, it's not so surprising. Here's a sample that you can
+copy-paste into ghci to help you understand it:
 
 ```haskell
 newtype IntOperation a = IntOperation { process :: a -> Either String a }
