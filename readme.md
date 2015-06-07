@@ -248,11 +248,17 @@ which doesn't look as nice as the previous one.
 
 Since the second variation does not really solve the problem of
 encapsulating parse state, and is also misguiding in the way it's
-built, time for a third variation.
+built, time for a third variation. From this point on, things get a
+bit weird. The third example uses rather convoluted code to insinuate
+at the idea of functors, which doesn't really work. This leads to code
+that's difficult to understand at a syntactic level, and even if you
+understand it, doesn't make sense at a functional level. For this
+reason, and to keep my sanity, I have refrained from going too deep
+down the rabbit hole.
 
-In this third variation, the parse state is packed inside an algebraic
-type named `ParseState` that contains the complete `ByteString` and
-the current offset:
+In the third variation, the parse state is packed inside the algebraic
+type `ParseState` that contains the complete `ByteString` and the
+current offset:
 
 ```haskell
 data ParseState = ParseState {
@@ -261,8 +267,8 @@ data ParseState = ParseState {
     } deriving (Show)
 ```
 
-The parsing function will take a `ParseState` with the `ByteString`
-and the offset set to 0, returning an `Either String (a,
+The parsing function will take a `ParseState` with the `ByteString` to
+be parsed and the offset set to 0, returning an `Either String (a,
 ParseState)`. The question is how to encapsulate the parsing
 steps. The authors use a newtype declaration to achieve this. This is
 a surprise move, as there was no example of putting a function inside
