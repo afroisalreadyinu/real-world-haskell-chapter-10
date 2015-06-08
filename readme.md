@@ -5,7 +5,10 @@ chapter, Chapter 10, is notorious for giving beginners a hard time. It
 introduces important concepts in a very roundabout way, with
 convoluted code examples that in some cases don't even run. This post
 is attempted as an understanding aid for that chapter, for me and for
-Haskell beginners who get stuck in that chapter.
+Haskell beginners who get stuck in that chapter. To be perfectly
+honest, understanding this chapter completely is not necessary; one
+could just skip to the section on functors without missing much. This
+write-up is simply to satisfy my obsessiveness.
 
 Chapter 10 uses as example the parsing of [PGM (portable grey
 map)](http://en.wikipedia.org/wiki/Netpbm_format) files. A sample file
@@ -20,14 +23,14 @@ editor:
 
 The last row is binary data that specifies greyscale values for
 individual pixels. The representation of a parsed PGM image generated
-by the example parsers in this chapter is straightforward; an
-algebraic data type named Greymap with fields grepWidth, greyHeight,
-greyMax and greyData is used. In order to represent such an image
-properly on the console, the `Show` interface of a Greymap is
-implemented to print size and maximum greyscale information. Since the
-Greymap data type is used by all code examples, it is included in this
-repo in the file `common.hs` imported by the other files. Here is the
-Greymap definition from that file:
+by the example parsers in this chapter is straightforward; a data type
+named Greymap with fields grepWidth, greyHeight, greyMax and greyData
+is used. In order to represent such an image properly on the console,
+the `Show` interface of a Greymap is implemented to print size and
+maximum greyscale information. Since the Greymap data type is used by
+all code examples, it is included in this repo in the file `common.hs`
+imported by the other files. Here is the Greymap definition from that
+file:
 
 ```haskell
 data Greymap = Greymap {
@@ -256,9 +259,9 @@ understand it, doesn't make sense at a functional level. For this
 reason, and to keep my sanity, I have refrained from going too deep
 down the rabbit hole.
 
-In the third variation, the parse state is packed inside the algebraic
-type `ParseState` that contains the complete `ByteString` and the
-current offset:
+In the third variation, the parse state is packed inside the type
+`ParseState` that contains the complete `ByteString` and the current
+offset:
 
 ```haskell
 data ParseState = ParseState {
@@ -272,9 +275,8 @@ be parsed and the offset set to 0, returning an `Either String (a,
 ParseState)`. The question is how to encapsulate the parsing
 steps. The authors use a newtype declaration to achieve this. This is
 a surprise move, as there was no example of putting a function inside
-a newtype constructor, but given that Haskell is a functional
-language, it's not so surprising. Here's a sample that you can
-copy-paste into ghci to help you understand it:
+a newtype constructor, and it is one of the ???. Here's a sample that
+you can copy-paste into ghci to help you understand it:
 
 ```haskell
 newtype IntOperation a = IntOperation { process :: a -> Either String a }
@@ -283,10 +285,10 @@ let multiplier limit = IntOperation $ \arg -> if arg > limit then (Left "Int too
 ```
 
 If you then run `(process (multiplier 2)) 5` in ghci, you should see
-the output `Left "Int too big"`. IntOperation is simply a wrapper
-around a lambda with the process parameter. This lambda, together with
-the wrappinmg IntOperation, can be created using something like a
-factory method, in this case `multiplier`.
+the output `Left "Int too big"`. `IntOperation` is simply a wrapper
+around a lambda passed in with the `process` parameter. This lambda,
+together with the wrapping `IntOperation`, can be created using
+something like a factory method, in this case `multiplier`.
 
 Here is the parsing function encapsulation from the book:
 
@@ -296,20 +298,20 @@ newtype Parse a = Parse {
     }
 ```
 
-As you can see, this is just a way of putting a function inside a
-newtype. The advantage here is that we have fixated the input type to
-`ParseState`, and make sure that the output of the encapsulated
-function is also of a certain type, parametrized by the argument to
-the `Parse` type constructor (??). The big mystery for me here was
-what the heck the `a` argument here is -- one point where the Haskell
-pattern of single-letter argument names fails. The use of the `Parse`
-type in the parsers that follow in this chapter reveal that `a` stands
-for the output of the previous prasing step, such as an int or a byte.
+Haskell being a functional language, this same thing could have been
+achieved using a simple closure. The only advantage of this
+formulation is that new types can be created only using the `Parse`
+constructor; using a function, one would have to declare a function
+type such as `ParseState -> Either String (Int, ParseState)`. The big
+mystery for me here was what the heck the `a` argument here is -- one
+point where the Haskell pattern of single-letter argument names
+fails. The use of the `Parse` type in the parsers that follow in this
+chapter reveal that `a` stands for the output of the previous parsing
+step, such as an int or a byte.
 
 A sample parser where we can see the Parser type in action is the
-identity parser which returns whatever it is given. As can be seen in
-the file `parse_identity.hs`, the identity parser can be defined as
-follows:
+identity parser which returns whatever it is given. Here are the
+relevant lines from `pgm3.hs`:
 
 ```haskell
 identity :: a -> Parse a
@@ -317,14 +319,14 @@ identity a = Parse (\s -> Right (a, s))
 ```
 
 So whatever `ParseState` it is given (`s` in the encapsulated lambda),
-identity will save that initial state, and the then return a tuple
-with the
+identity will return whatever it was initialized with and the
+`ParseState` in a tuple. This parsing element will be used in a sample
+parser in this chapter.
 
- ??? WTWTWTWTWW
-
-What we need to parse a file is to be able to increase the offset.
-This is achieved using the following function that makes use of
-applying bracket notation to ADT types to create new ones:
+Parsing a file involves reading data from the `ByteString` and
+increasing the offset by the number of bytes read. Increasing the
+offset of a `ParseState` is done using the bracket notation on records
+to create new ones:
 
 ```haskell
 modifyOffset :: ParseState -> Int64 -> ParseState
@@ -332,16 +334,14 @@ modifyOffset initState newOffset =
     initState { offset = newOffset }
 ```
 
-The output of this function is a new ParseState that has changed only
-the offset of the original. Next up, we need two more methods to
-
-https://hackage.haskell.org/package/bytestring-0.9.2.1/docs/Data-ByteString-Lazy.html#v:uncons
+The output of this function is a new ParseState that is different only
+on the `offset` field from `initState`.
 
 Another thing we need is a way to chain `Parser`s. That is, we need
 the capability to take one `Parse`, run it (remember, a `Parse`
 encapsulates parsing logic in a lambda), take the result, and put it
-into another `Parse`. If you look at the type definition of `==>`,
-this is exactly what it does:
+into another `Parse`. If you look at the type definition of `==>` from
+`pgm3.hs`, this is exactly what it does:
 
 ```haskell
 (==>) :: Parse a -> (a -> Parse b) -> Parse b
@@ -366,16 +366,54 @@ firstParser ==> secondParser  =  Parse chainedParser
 Let's try to understand what's happening here, shall we? The result of
 the `==>` operator is the `chainedParser` function that is created in
 the `where` clause, wrapped in a Parse. Before the `runParse` function
-is called on the end result, this function will not run, so we're
-essentially creating state wrapped in a lambda inside a
-newtype. `chainedParser` gets an initState as an argument, as it
-should since it's getting wrapped in a Parse. It then runs the
-`firstParser` on this state. If the result is an error message, the
-output of `chainedParser` is also an error message. If the result is
-`Right (firstResult, newState)`, the `secondParser` is initialized
-with `firstResult`, and called with `newState`. The main difficulty in
-understanding this function stems from `firstParser` and
+is called on the end result and the unwrapped function is called, this
+function will not run, so we're essentially creating state wrapped in
+a lambda inside a newtype. `chainedParser` gets an `initState` as an
+argument, as it should since it's getting wrapped in a Parse. It then
+runs the `firstParser` on this state. If the result is an error
+message, the output of `chainedParser` is also an error message. If
+the result is `Right (firstResult, newState)`, the `secondParser` is
+initialized with `firstResult`, and called with `newState`. The main
+difficulty in understanding this function stems from `firstParser` and
 `secondParsers` having names that imply they are of the same kind, but
 they actually aren't. `firstParser` is `Parse a`, whereas
-`secondParse` is `a -> Parse b`, that is, a factory that produces a
+`secondParse` is `a -> Parse b`, i.e. a factory that produces a
 `Parser`.
+
+Now let's look at the actual parser from the third example that uses
+the above tools:
+
+```haskell
+parseByte :: Parse Word8
+parseByte =
+    getState ==> \initState ->
+    case L.uncons (string initState) of
+      Nothing ->
+          bail "no more input"
+      Just (byte,remainder) ->
+          putState newState ==> \_ ->
+          identity byte
+        where newState = initState { string = remainder,
+                                     offset = newOffset }
+              newOffset = offset initState + 1
+```
+
+This parser uses two functions we haven't seen yet, `getState` and
+`putState`. These are both a bit weird; `getState` is a `Parse` that
+puts the state it is passed in both parts of the returned `Either`:
+
+```haskell
+getState :: Parse ParseState
+getState = Parse (\s -> Right (s, s))
+```
+
+and `putState` returns unity and the parse state as a result:
+
+```haskell
+putState :: ParseState -> Parse ()
+putState s = Parse (\_ -> Right ((), s))
+```
+
+
+
+https://hackage.haskell.org/package/bytestring-0.9.2.1/docs/Data-ByteString-Lazy.html#v:uncons
