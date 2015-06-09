@@ -1,5 +1,3 @@
-module PGM3 (ParseState(..), Parse(..)) where
-
 import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Data.ByteString.Lazy as L
 import Data.Char (isSpace)
@@ -59,14 +57,15 @@ parseByte =
                                      offset = newOffset }
               newOffset = offset initState + 1
 
+
+
 main :: IO ()
 main = do
   args <- getArgs
   contents <- L8.readFile (head args)
-  -- initState <- ParseState contents 0
-  -- let parse_result = parseByte initState
-  let parse_result = parseP5_take2 contents
+  let initState = ParseState contents 0
+  let parse_result = runParse parseByte initState
   case parse_result of
-    Nothing -> putStrLn "Error parsing file"
-    Just (greymap, rest) -> putStrLn (show greymap)
+    Left error -> putStrLn $ "Error parsing file: " ++ error
+    Right (word, parse_state) -> putStrLn $ "Byte parsed: " ++ show word
   return ()

@@ -384,6 +384,11 @@ Now let's look at the actual parser from the third example that uses
 the above tools:
 
 ```haskell
+
+bail :: String -> Parse a
+bail err = Parse $ \s -> Left $
+           "byte offset " ++ show (offset s) ++ ": " ++ err
+
 parseByte :: Parse Word8
 parseByte =
     getState ==> \initState ->
@@ -398,22 +403,47 @@ parseByte =
               newOffset = offset initState + 1
 ```
 
-This parser uses two functions we haven't seen yet, `getState` and
-`putState`. These are both a bit weird; `getState` is a `Parse` that
-puts the state it is passed in both parts of the returned `Either`:
+`bail` here is a very simple function to return an error. `parseByte`
+uses two functions we haven't seen yet, `getState` and `putState`.
+These are both a bit weird; `getState` is a `Parse` that puts the
+state it is passed in both parts of the returned `Either`:
 
 ```haskell
 getState :: Parse ParseState
 getState = Parse (\s -> Right (s, s))
 ```
 
-and `putState` returns unity and the parse state as a result:
+It is used in `parseByte` to pack the initial state for the next
+step. `putState` returns unity and the parse state as a result:
 
 ```haskell
 putState :: ParseState -> Parse ()
 putState s = Parse (\_ -> Right ((), s))
 ```
 
+Here is how `parseByte` works. The central piece is the `==>` operator
+that chains a `Parse` with a `Parse` factory (`a -> Parse b`) to
+create another `Parse`. The chained elements are `getState` with the
+lambda that follows it, and then within the lambda, `putState` with a
+lambda that creates an `identity Word8`. When `parseByte` is called on
+a `ParseState` created from the contents of the `test.pgm` file (lines
+67 and 68 in `pgm3.hs`), the combined parser created by the first
+`==>` is fired. It runs `getState`, which returns the exact same
+initial `ParseState` in both slots of a tuple. The second argument to
+`==>` in this first chain, the lambda starting at line 49 with the
+single argument `initState`, is run with the first slot of the tuple,
+the initial state. This lambda takes the `ByteString` and uncons's it
+using
+[`Data.ByteString.Lazy.uncons`](https://hackage.haskell.org/package/bytestring-0.9.2.1/docs/Data-ByteString-Lazy.html#v:uncons)
+-- that is, splits head and tail.
+
+There are a number of obvious problems with `parseByte`. First of all,
+`getByte` and `putByte` are totally senseless; we don't need them to
+pass a `ParseState` to the `case` statement they enclose. They are
+used just to demonstrate the `==>` operator. Here is `parseByte`
+version that does not use these functions and works just as well:
+
+```haskell
 
 
-https://hackage.haskell.org/package/bytestring-0.9.2.1/docs/Data-ByteString-Lazy.html#v:uncons
+## Parsing with functors

@@ -8,8 +8,7 @@ matchHeader :: L.ByteString -> L.ByteString -> Maybe L.ByteString
 matchHeader prefix str
     | prefix `L8.isPrefixOf` str
         = Just (L8.dropWhile isSpace (L.drop (L.length prefix) str))
-| otherwise
-    = Nothing
+    | otherwise = Nothing
 
 -- "nat" here is short for "natural number"
 getNat :: L.ByteString -> Maybe (Int, L.ByteString)
