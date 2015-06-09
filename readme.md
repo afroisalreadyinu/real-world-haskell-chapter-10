@@ -435,15 +435,40 @@ single argument `initState`, is run with the first slot of the tuple,
 the initial state. This lambda takes the `ByteString` and uncons's it
 using
 [`Data.ByteString.Lazy.uncons`](https://hackage.haskell.org/package/bytestring-0.9.2.1/docs/Data-ByteString-Lazy.html#v:uncons)
--- that is, splits head and tail.
+-- that is, splits head and tail. If there was no data, `bail` is
+called. Otherwise, another chain is created using `==>`. This one
+involves `putState` and another lambda. As we already know, `putState`
+takes whatever it was given, and creates a `Parse` that returns a
+unity and that thing. When we couple this with an `identity` that
+receives as its first argument the byte that was parsed in the
+containing lambda, and returns that byte no matter what it is called
+with, what we get is the byte. To make this last step more
+understandable, here is a step-by-step evaluation:
+
+```haskell
+(putState newState) ==> \_ -> identity byte
+-- is equivalent to
+Parse (\_ -> Right ((), newState) ==> \_ -> Parse (\s -> Right(byte, s))
+-- is equivalent to
+runParse ( Parse (\s -> Right(byte, s)) newState
+-- is equivalent to
+Right (byte, newState)
+```
+
+We end up with the remained from the `uncons` operation and a new
+incremented offset, and the parsed byte. `pgm3.hs` tells me that the
+first byte of `test.pgm` is 80 when I run it.
 
 There are a number of obvious problems with `parseByte`. First of all,
 `getByte` and `putByte` are totally senseless; we don't need them to
 pass a `ParseState` to the `case` statement they enclose. They are
-used just to demonstrate the `==>` operator. Here is `parseByte`
-version that does not use these functions and works just as well:
-
-```haskell
-
+used just to demonstrate the `==>` operator; it would be relatively
+easy (but still pointless) to write a `parseByte` alternative without
+any of these two functions. Also, what's the deal with the weird
+combination of `putState` and `identity`? They are essentially just
+swapping arguments and returning a value in a backhanded manner
+through a closure. `parseByte` is not how one should write Haskell.
 
 ## Parsing with functors
+
+TBW.
