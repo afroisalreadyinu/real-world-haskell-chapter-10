@@ -311,7 +311,7 @@ step, such as an int or a byte.
 
 A sample parser where we can see the Parser type in action is the
 identity parser which returns whatever it is given. Here are the
-relevant lines from `pgm3.hs`:
+relevant lines from `parse_identity.hs`:
 
 ```haskell
 identity :: a -> Parse a
@@ -455,9 +455,9 @@ runParse ( Parse (\s -> Right(byte, s)) newState
 Right (byte, newState)
 ```
 
-We end up with the remained from the `uncons` operation and a new
-incremented offset, and the parsed byte. `pgm3.hs` tells me that the
-first byte of `test.pgm` is 80 when I run it.
+We end up with the remainder from the `uncons` operation and a new
+incremented offset in a `ParseState`, and the parsed byte. `pgm3.hs`
+tells me that the first byte of `test.pgm` is 80 when I run it.
 
 There are a number of obvious problems with `parseByte`. First of all,
 `getByte` and `putByte` are totally senseless; we don't need them to
@@ -471,4 +471,43 @@ through a closure. `parseByte` is not how one should write Haskell.
 
 ## Parsing with functors
 
-TBW.
+The discussion of functors in Chapter 10 is rather straightforward and
+the examples do not need explanation, so we will skip that. The only
+thing I would like to note is the definition of a functor, which is a
+class with one method:
+
+```haskell
+class Functor f where
+    fmap :: (a -> b) -> f a -> f b
+```
+
+The type `f` here is referred to as the container type. There are two
+rules functors must obey to be considered a proper implementation. The
+first is that a functor must preserve identity:
+
+```haskell
+fmap id ==  id
+```
+
+The second is that functors must be composable, i.e. applying the
+composition of two functions to a functors should be the same as
+applying them separately:
+
+```haskell
+fmap (f . g)  ==  fmap f . fmap g
+```
+
+And now for the fourth iteration of the PGM parser using functors. For
+this iteration, `Parse` turned into a functor, and then chained using
+a new combination operator. The functor instance definition is as
+follows:
+
+```haskell
+instance Functor Parse where
+    fmap f parser = parser ==> \result ->
+                    identity (f result)
+```
+
+It's the same identity trick that we saw earlier. What does this
+combinator do? It returns a `Parser` that, when evaluated with
+`runParser` on a `ParseState`,
