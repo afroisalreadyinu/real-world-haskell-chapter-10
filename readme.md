@@ -3,12 +3,12 @@
 **Real World Haskell** is a great book for learning Haskell, but one
 chapter, Chapter 10, is notorious for giving beginners a hard time. It
 introduces important concepts in a very roundabout way, with
-convoluted code examples that in some cases don't even run. This post
-is attempted as an understanding aid for that chapter, for me and for
-Haskell beginners who get stuck in that chapter. To be perfectly
-honest, understanding this chapter completely is not necessary; one
-could just skip to the section on functors without missing much. This
-write-up is simply to satisfy my obsessiveness.
+convoluted code examples that in some cases don't even run. Also, it
+is full of leaky abstractions that don't work as expected (deceptive
+chaining of lambda, newtype as a container of stateful behavior, fmaps
+that have to be doubled etc.) that are still important for the rest of
+the book. This post is attempted as an understanding aid for that
+chapter, for me and for Haskell beginners who get stuck in it.
 
 Chapter 10 uses as example the parsing of [PGM (portable grey
 map)](http://en.wikipedia.org/wiki/Netpbm_format) files. A sample file
@@ -320,8 +320,9 @@ identity a = Parse (\s -> Right (a, s))
 
 So whatever `ParseState` it is given (`s` in the encapsulated lambda),
 identity will return whatever it was initialized with and the
-`ParseState` in a tuple. This parsing element will be used in a sample
-parser in this chapter.
+`ParseState` in a tuple. `identity` does not look particularly useful
+here, but we will see how it is put to use later, in combination with
+parser chaining and functors.
 
 Parsing a file involves reading data from the `ByteString` and
 increasing the offset by the number of bytes read. Increasing the
@@ -414,7 +415,14 @@ getState = Parse (\s -> Right (s, s))
 ```
 
 It is used in `parseByte` to pack the initial state for the next
-step. `putState` returns unity and the parse state as a result:
+step. You might ask yourself the question "Why the #*!! is `getState`
+a `Parse`? It just creates a tuple!", and you would be right. The
+reason for this convoluted way of presenting a `ParseState` will be
+understandable when `Parse` gets to act as a functor, so that we can
+use instances including `getState` to encapsulate parsing logic and
+chain it with others.
+
+`putState` returns unity and the parse state as a result:
 
 ```haskell
 putState :: ParseState -> Parse ()
@@ -457,7 +465,12 @@ Right (byte, newState)
 
 We end up with the remainder from the `uncons` operation and a new
 incremented offset in a `ParseState`, and the parsed byte. `pgm3.hs`
-tells me that the first byte of `test.pgm` is 80 when I run it.
+tells me that the first byte of `test.pgm` is 80 when I run it. What
+is relevant for the rest of the chapter is that `identity`, when used
+as the second argument of `==>`, serves to pack the output of the
+first argument, as `==>` passes it in opaquely through a closure. When
+another `Parse` is chained, it will get exactly the same arguments
+that were packed into `identity`.
 
 There are a number of obvious problems with `parseByte`. First of all,
 `getByte` and `putByte` are totally senseless; we don't need them to
@@ -497,10 +510,12 @@ applying them separately:
 fmap (f . g)  ==  fmap f . fmap g
 ```
 
-And now for the fourth iteration of the PGM parser using functors. For
-this iteration, `Parse` turned into a functor, and then chained using
-a new combination operator. The functor instance definition is as
-follows:
+And now for the fourth iteration of the PGM parser using functors. You
+can find the code for this iteration in `pgm4.hs`. The relevant bits
+from earlier iterations have been copied in for you convenience. For
+this iteration, `Parse` is turned into a functor, and then chained
+using a new combination operator. The functor instance definition is
+as follows:
 
 ```haskell
 instance Functor Parse where
@@ -510,4 +525,7 @@ instance Functor Parse where
 
 It's the same identity trick that we saw earlier. What does this
 combinator do? It returns a `Parser` that, when evaluated with
-`runParser` on a `ParseState`,
+`runParser` on a `ParseState`, returns `Right ((f result), newState)`,
+provided that there are no errors. This definition of functor for
+`Parse` preserves identity, because `Right ((id result), newState) ==
+Right (result, newState)`.
