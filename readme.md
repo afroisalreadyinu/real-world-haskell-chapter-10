@@ -494,9 +494,14 @@ class Functor f where
     fmap :: (a -> b) -> f a -> f b
 ```
 
-The type `f` here is referred to as the container type. There are two
-rules functors must obey to be considered a proper implementation. The
-first is that a functor must preserve identity:
+The type `f` here is referred to as the container type. `fmap` can be
+used as an inline operator either by putting ticks around it, or by
+importing
+[`<$>`](https://hackage.haskell.org/package/base-4.8.0.0/docs/Control-Applicative.html#v:-60--36--62-)
+from `Control.Applicative`, and using that instead, which we will do
+frequently in the following. There are two rules functors must obey to
+be considered a proper implementation. The first is that a functor
+must preserve identity:
 
 ```haskell
 fmap id ==  id
@@ -528,4 +533,58 @@ combinator do? It returns a `Parser` that, when evaluated with
 `runParser` on a `ParseState`, returns `Right ((f result), newState)`,
 provided that there are no errors. This definition of functor for
 `Parse` preserves identity, because `Right ((id result), newState) ==
-Right (result, newState)`.
+Right (result, newState)`. It is also composable because the `Parse`
+instance returned by `fmap` allows chaining more `identity` parsers
+with further application of `fmap`. `identity` simply passes these
+function applications on, preserving the `ParseState` (as explained
+above), and leading to the following equality:
+
+```haskell
+parse ((f . g) <$> parseByte) input == parse (f <$> g <$> parseByte) input
+```
+
+Once we have the functor definition for `Parse` nailed, we can
+discover the possibilities offered by its application. For beginners,
+instead of duplicating code, we can use `parseByte` to define a
+`parseChar`:
+
+```haskell
+w2c :: Word8 -> Char
+w2c = chr . fromIntegral
+
+parseChar :: Parse Char
+parseChar = w2c <$> parseByte
+```
+
+Parsing a character is simply turning a `Word8` to its character value
+using
+[`Data.Char.chr`](http://hackage.haskell.org/package/base-4.8.0.0/docs/Data-Char.html#v:chr). A
+more complicated application is peeking inside a `Parser` to read the
+first byte or character:
+
+```haskell
+peekByte :: Parse (Maybe Word8)
+peekByte = (fmap fst . L.uncons . string) <$> getState
+
+peekChar :: Parse (Maybe Char)
+peekChar = fmap w2c <$> peekByte
+```
+
+The definition of `peekByte` is a bit tricky because of precedence
+rules and the presence of a `Maybe` type. We have to start with
+`getState`, which would allow fmap'ing onto the `ParseState`, because
+we are concerned with the `ByteString` in there. Three functions are
+combined before getting fmap'ed on `getState`. These are `fmap fst`,
+`L.uncons` and `string`. That is, the fmap binding within the
+paranthesis is not on the combination of the three functions, but only
+on the first one, and then the combination occurs. Applied from right
+to left, `string` gets the `ByteString` of the `ParseState`,
+`L.uncons` splits this `ByteString` into head and rest, or `Nothing`
+if its length was 0, and `fmap fst` takes the first element. The
+reason we have `fmap fst` here instead of just `fst` is that he return
+value of
+[`Data.ByteString.Lazy.uncons`](https://hackage.haskell.org/package/bytestring-0.9.2.1/docs/Data-ByteString-Lazy.html#v:uncons)
+is `Maybe(Word8, BytString)`. `Maybe` being a functor, we can get the
+first of the two arguments by fmap'ing `fst` to it. `peekChar` is, as
+was the case with `parseChar`, a simple application of `w2c` to
+`peekByte`.
