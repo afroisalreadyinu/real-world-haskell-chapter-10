@@ -588,3 +588,39 @@ is `Maybe(Word8, BytString)`. `Maybe` being a functor, we can get the
 first of the two arguments by fmap'ing `fst` to it. `peekChar` is, as
 was the case with `parseChar`, a simple application of `w2c` to
 `peekByte`.
+
+Wouldn't it be great if we could read from a `ByteString` as long as
+it's an integer or character? I can hear your enthusiasm from my
+computer right here. Here's how:
+
+```haskell
+parseWhile :: (Word8 -> Bool) -> Parse [Word8]
+parseWhile p = (fmap p <$> peekByte) ==> \mp ->
+               if mp == Just True
+               then parseByte ==> \b ->
+                    (b:) <$> parseWhile p
+               else identity []
+
+parseWhileWith :: (Word8 -> a) -> (a -> Bool) -> Parse [a]
+parseWhileWith f p = fmap f <$> parseWhile (p . f)
+```
+
+Using `parseWhileWith`, we can read an integer from the `ByteString`
+by peeking into it, reading it if it's a digit,
+
+```haskell
+parseRawPGM =
+    parseWhileWith w2c notWhite ==> \header -> skipSpaces ==>&
+    assert (header == "P5") "invalid raw header" ==>&
+    parseNat ==> \width -> skipSpaces ==>&
+    parseNat ==> \height -> skipSpaces ==>&
+    parseNat ==> \maxGrey ->
+    parseByte ==>&
+    parseBytes (width * height) ==> \bitmap ->
+    identity (Greymap width height maxGrey bitmap)
+  where notWhite = (`notElem` " \r\n\t")
+```
+
+To be perfectly honest, this is some of the ugliest and most
+incomprehensible code I have ever seen, and I don't understand how it
+could be an improvement over *anything*.
