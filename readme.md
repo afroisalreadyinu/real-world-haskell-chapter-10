@@ -606,9 +606,32 @@ parseWhileWith f p = fmap f <$> parseWhile (p . f)
 ```
 
 Using `parseWhileWith`, we can read an integer from the `ByteString`
-by peeking into it, reading it if it's a digit,
+by collecting digits from it:
 
 ```haskell
+parseNat :: Parse Int
+parseNat = parseWhileWith w2c isDigit ==> \digits ->
+           if null digits
+           then bail "no more input"
+           else let n = read digits
+                in if n < 0
+                   then bail "integer overflow"
+                   else identity n
+```
+
+TBW
+
+```haskell
+(==>&) :: Parse a -> Parse b -> Parse b
+p ==>& f = p ==> \_ -> f
+
+skipSpaces :: Parse ()
+skipSpaces = parseWhileWith w2c isSpace ==>& identity ()
+
+assert :: Bool -> String -> Parse ()
+assert True  _   = identity ()
+assert False err = bail err
+
 parseRawPGM =
     parseWhileWith w2c notWhite ==> \header -> skipSpaces ==>&
     assert (header == "P5") "invalid raw header" ==>&
@@ -623,4 +646,5 @@ parseRawPGM =
 
 To be perfectly honest, this is some of the ugliest and most
 incomprehensible code I have ever seen, and I don't understand how it
-could be an improvement over *anything*.
+could be an improvement over *anything*. But I made the promise to
+explain the whole chapter, so here it goes.
