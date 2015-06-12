@@ -577,21 +577,23 @@ we are concerned with the `ByteString` in there. Three functions are
 combined before getting fmap'ed on `getState`. These are `fmap fst`,
 `L.uncons` and `string`. That is, the fmap binding within the
 paranthesis is not on the combination of the three functions, but only
-on the first one, and then the combination occurs. Applied from right
-to left, `string` gets the `ByteString` of the `ParseState`,
-`L.uncons` splits this `ByteString` into head and rest, or `Nothing`
-if its length was 0, and `fmap fst` takes the first element. The
-reason we have `fmap fst` here instead of just `fst` is that he return
-value of
+on the first one, and then the combination occurs. This is also the
+reason both fmap and `<$>` are used; these have different precedences;
+fmap is a function, so it has the highest precedence, `.` follows it
+with 9, and `<$>` has precedence 4. Applied from right to left,
+`string` gets the `ByteString` of the `ParseState`, `L.uncons` splits
+this `ByteString` into head and rest, or `Nothing` if its length was
+0, and `fmap fst` takes the first element. The reason we have `fmap
+fst` here instead of just `fst` is that he return value of
 [`Data.ByteString.Lazy.uncons`](https://hackage.haskell.org/package/bytestring-0.9.2.1/docs/Data-ByteString-Lazy.html#v:uncons)
 is `Maybe(Word8, BytString)`. `Maybe` being a functor, we can get the
 first of the two arguments by fmap'ing `fst` to it. `peekChar` is, as
 was the case with `parseChar`, a simple application of `w2c` to
 `peekByte`.
 
-Wouldn't it be great if we could read from a `ByteString` as long as
-it's an integer or character? I can hear your enthusiasm from my
-computer right here. Here's how:
+A function we will need later is a an alternative to `takeWhile` that
+creates a `Parser` which keeps on reading from a `ByteString` as long
+as a criterion `p` is met:
 
 ```haskell
 parseWhile :: (Word8 -> Bool) -> Parse [Word8]
@@ -604,6 +606,20 @@ parseWhile p = (fmap p <$> peekByte) ==> \mp ->
 parseWhileWith :: (Word8 -> a) -> (a -> Bool) -> Parse [a]
 parseWhileWith f p = fmap f <$> parseWhile (p . f)
 ```
+
+`parseWhile` should be relatively easy to understand: It applies a
+predicate to the peeked byte, using double fmap's once more. This
+results in a `Parse`, which is chained with `==>` to a `Parse` factory
+that continues parsing if the predicate was true, and returns an
+`identity` that returns an empty list otherwise. The only trick is
+using the cons operator `:` with the parsed byte to create a function
+to be fmap'ed to a further `parseWhile`. `parseWhileWith` is a
+variation on `parseWhile` that takes another function `f` in addition
+to the predicate. This function is used to turn the peeked byte into
+another preferred type before applying the predicate, and is also
+mapped on the final result. The double fmap'ing is necessary this time
+around too, because the result of `parseWhile` is a list, and we can
+apply `f` to all elements of a list with fmap.
 
 Using `parseWhileWith`, we can read an integer from the `ByteString`
 by collecting digits from it:
@@ -619,7 +635,18 @@ parseNat = parseWhileWith w2c isDigit ==> \digits ->
                    else identity n
 ```
 
-TBW
+The logic here is no different from earlier `Parse` instances. One
+thing to note is the hack of checking for integer overflow by looking
+at whether the value is negative. `Int` is a signed integer, and on
+most platforms, overflow causes it to become negative because the sign
+bit is modified. An interesting point is how the collected digits are
+converted to `Int`. The digits are characters, and a list of charcters
+is a string, which can be parsed as an `Int` simply by `read`ing
+it. We don't have to tell the compiler which type we want to have it
+as, because the context makes it clear.
+
+With that, we can build the next version of our parser, which
+unfortunately doesn't look nice:
 
 ```haskell
 (==>&) :: Parse a -> Parse b -> Parse b
@@ -631,6 +658,16 @@ skipSpaces = parseWhileWith w2c isSpace ==>& identity ()
 assert :: Bool -> String -> Parse ()
 assert True  _   = identity ()
 assert False err = bail err
+
+parseBytes :: Int -> Parse L.ByteString
+parseBytes n =
+    getState ==> \st ->
+    let n' = fromIntegral n
+        (h, t) = L.splitAt n' (string st)
+        st' = st { offset = offset st + L.length h, string = t }
+    in putState st' ==>&
+       assert (L.length h == n') "end of input" ==>&
+       identity h
 
 parseRawPGM =
     parseWhileWith w2c notWhite ==> \header -> skipSpaces ==>&
@@ -648,3 +685,24 @@ To be perfectly honest, this is some of the ugliest and most
 incomprehensible code I have ever seen, and I don't understand how it
 could be an improvement over *anything*. But I made the promise to
 explain the whole chapter, so here it goes.
+
+We have one more combination operator, `==>&`, which looks like a Perl
+regular expression. This operator uses the previous `==>` but simply
+omits the result of the first `Parse`, feeding only the resulting
+`ParseState`. The second argument to the `==>&` operator thus should
+be an initialized `Parse` and not a factory. There are three more
+helper functions that either use this new combination operator or are
+arguments to it. The first, `skipSpaces`, keeps on reading from a
+`ByteString` as long as it's a space character. The result is
+dismissed, and the final `ParseState` is passed on to an `identity`
+whose result part is unity. `assert` is an assertion packed into a
+`Parse`, and does not deserve any further discussion.
+
+The `parseBytes` function takes an `n :: Int` and returns a `Parse`
+that reads the first `n` bytes of a `ByteString`. The functionality is
+embedded in a lambda that has a `let .. in .. ` statement which
+returns three chained `Parse` instances. Within the `let` part,
+[`Data.ByteString.Lazy.splitAt`](https://hackage.haskell.org/package/bytestring-0.9.2.1/docs/Data-ByteString-Lazy.html#v:splitAt)
+is used to split the `ByteString`. A new `ParseState` is created using
+the bracket notation. The `Parse` instances are then chained in the
+`let` part; these are a `putState`, an assert, and an identity that
