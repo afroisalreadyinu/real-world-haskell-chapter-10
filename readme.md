@@ -5,10 +5,10 @@ chapter, Chapter 10, is notorious for giving beginners a hard time. It
 introduces important concepts in a very roundabout way, with
 convoluted code examples that in some cases don't even run. Also, it
 is full of leaky abstractions that don't work as expected (deceptive
-chaining of lambda, newtype as a container of stateful behavior, fmaps
-that have to be doubled etc.) that are still important for the rest of
-the book. This post is attempted as an understanding aid for that
-chapter, for me and for Haskell beginners who get stuck in it.
+chaining of lambdas, newtype as a container of stateful behavior,
+fmaps that have to be doubled etc.) that are still important for the
+rest of the book. This post is attempted as an understanding aid for
+that chapter, for me and for Haskell beginners who get stuck in it.
 
 Chapter 10 uses as example the parsing of [PGM (portable grey
 map)](http://en.wikipedia.org/wiki/Netpbm_format) files. A sample file
@@ -686,17 +686,19 @@ incomprehensible code I have ever seen, and I don't understand how it
 could be an improvement over *anything*. But I made the promise to
 explain the whole chapter, so here it goes.
 
-We have one more combination operator, `==>&`, which looks like a Perl
-regular expression. This operator uses the previous `==>` but simply
-omits the result of the first `Parse`, feeding only the resulting
-`ParseState`. The second argument to the `==>&` operator thus should
-be an initialized `Parse` and not a factory. There are three more
-helper functions that either use this new combination operator or are
-arguments to it. The first, `skipSpaces`, keeps on reading from a
-`ByteString` as long as it's a space character. The result is
-dismissed, and the final `ParseState` is passed on to an `identity`
-whose result part is unity. `assert` is an assertion packed into a
-`Parse`, and does not deserve any further discussion.
+We have one more combination operator, `==>&`, which looks a lot like
+a Perl regular expression to me. This operator uses the previous `==>`
+but simply omits the result of the first `Parse`, feeding only the
+resulting `ParseState`. The second argument to the `==>&` operator
+thus should be an initialized `Parse` and not a factory. It receives
+the `ParseState` that came out of the first one when run with
+`runParse`. There are three more helper functions that either use this
+new combination operator or are arguments to it. The first,
+`skipSpaces`, keeps on reading from a `ByteString` as long as it's a
+space character. The result is dismissed, and the final `ParseState`
+is passed on to an `identity` whose result part is unity.  `assert` is
+an assertion packed into a `Parse`, and does not deserve any further
+discussion.
 
 The `parseBytes` function takes an `n :: Int` and returns a `Parse`
 that reads the first `n` bytes of a `ByteString`. The functionality is
@@ -704,5 +706,29 @@ embedded in a lambda that has a `let .. in .. ` statement which
 returns three chained `Parse` instances. Within the `let` part,
 [`Data.ByteString.Lazy.splitAt`](https://hackage.haskell.org/package/bytestring-0.9.2.1/docs/Data-ByteString-Lazy.html#v:splitAt)
 is used to split the `ByteString`. A new `ParseState` is created using
-the bracket notation. The `Parse` instances are then chained in the
-`let` part; these are a `putState`, an assert, and an identity that
+the record notation. The `Parse` instances are then chained in the
+`let` part; these are a `putState`, an assert, and an identity that is
+initialized with the head part from splitting the `ByteString`. What
+will this identity contain when we run the `Parse` resulting from this
+function? The first item in the resulting tuple will be the head from
+`splitAt`; the second will be the new `ParseState` that was created in
+the line `st' = st { offset = offset st + L.length h, string = t }`
+and put into `putState`. The reason is that these three `Parse`
+instances are chained using `==>&`, which omits any results and only
+passes on the `ParseState`.
+
+With that, we come to the final `parseRawPGM` function. The steps are
+the same with the parsing functions in the earlier iterations; the
+difference is in how they are chained to each other. If the result of
+a parse step is valuable, such as the first step with `parseWhileWith
+w2c notWhite` which gets the header, the `==>` operator is used to
+connect to the following lambda (it has to be a lambda because of the
+definition of this operator). This lambda gets as its only argument
+the result of the first parse step, and once more, although it's not
+obvious from the indentation, these results are preserved within the
+nested lambdas. If the result of a `Parse` is meaningless, such as
+with `skipSpaces`, the `==>&` operator is used, which discards the
+result. We end up with a `Greymap`.
+
+That was it! I hope this walk-through helps you with continuing with
+this great book.
