@@ -49,13 +49,14 @@ Given a file in PGM format, how should we read it into memory? Since
 the file contains mostly binary data, we can't (or shouldn't) use the
 Prelude methods that read a file into a string. Instead, we should
 read the file contents into a
-[`Data.ByteString.Lazy.ByteString`](https://hackage.haskell.org/package/bytestring-0.9.1.5/docs/Data-ByteString-Lazy.html#t:ByteString)
-. The methods to do that, and also many other methods to deal with
+[`Data.ByteString.Lazy.ByteString`](https://hackage.haskell.org/package/bytestring-0.9.1.5/docs/Data-ByteString-Lazy.html#t:ByteString).
+The methods to do that, and also many other methods to deal with
 binary data, are in two modules:
 [`Data.ByteString.Lazy.Char8`](https://hackage.haskell.org/package/bytestring-0.9.1.7/docs/Data-ByteString-Lazy-Char8.html)
 and
-[`Data.ByteString.Lazy`](https://hackage.haskell.org/package/bytestring-0.9.2.1/docs/Data-ByteString-Lazy.html). These
-will be imported as L8 and L, respectively, to avoid excessive typing.
+[`Data.ByteString.Lazy`](https://hackage.haskell.org/package/bytestring-0.9.2.1/docs/Data-ByteString-Lazy.html).
+These are imported as L8 and L, respectively, to avoid excessive
+typing.
 
 ## Linear parsing
 
@@ -131,16 +132,17 @@ getBytes n str = let count           = fromIntegral n
 the rest using
 [`Data.ByteString.Lazy.splitAt`](https://hackage.haskell.org/package/bytestring-0.9.1.7/docs/Data-ByteString-Lazy.html#v:splitAt). The
 size of the prefix (determined using
-[`Data.ByteString.Lazy.length`](https://hackage.haskell.org/package/bytestring-0.9.1.7/docs/Data-ByteString-Lazy.html#v:length)
+[`Data.ByteString.Lazy.length`](https://hackage.haskell.org/package/bytestring-0.9.1.7/docs/Data-ByteString-Lazy.html#v:length))
 is compared to the count argument, and if it is smaller, which means
-that the `ByteString` was not big enough, `Nothing` is
-returned. Otherwise, the tuple of the prefix and rest data is
-returned.
+that the `ByteString` was not big enough, `Nothing` is returned.
+Otherwise, the tuple of the prefix and rest data is returned.
 
-The parsing function that uses these matchers is very
-straightforward. It applies the matchers consequently, returning
-`Nothing` if one of them returns `Nothing`, otherwise ending with the
-`Greymap` instance that packs the data that was parsed.
+The parsing function that uses these matchers is very straightforward;
+it's a bit long and does not need much explaining, so it's not
+included here, but you can inspect it in `pgm1.hs`, starting from line
+31. It applies the matchers sequentially, returning `Nothing` if one
+of them returns `Nothing`, otherwise ending with the `Greymap`
+instance that packs the data that was parsed.
 [`Data.ByteString.Lazy.Char8`](https://hackage.haskell.org/package/bytestring-0.9.1.7/docs/Data-ByteString-Lazy-Char8.html#v:pack)
 is used to turn the PGM prefix P5 into a `ByteString`, passing the
 result into `matchHeader`. If the return value is `Nothing`, parsing
@@ -155,9 +157,9 @@ should see:
 
 which is exactly what we should expect.
 
-As straightforward as the parsing function is, it's not good
-code. It's very repetitive, would be difficult to change and adapt to
-any variations in file format, does not offer abstraction, and looks
+As straightforward as the parsing function is, it's not good code.
+It's very repetitive, would be difficult to change and adapt to any
+variations in file format, does not offer any abstraction, and looks
 plain ugly. The first step in refactoring the parsing function is
 factoring out the chaining, where `Nothing` from a matching function
 leads to exit, whereas a `Just` value leads to the contents getting
@@ -201,24 +203,21 @@ skipSpace (a, s) = Just (a, L8.dropWhile isSpace s)
 
 Also pay attention to the `(getNat . snd)` combination, which serves
 to pick the second element of the tuple returned by skipSpace and feed
-it to `getNat`. The execution of the chained functions built by the
-`parseP5_take2` method follows from top to bottom in a wrapped
-fashion. That is, the last line is the outermost function application.
-As the chain unfolds from the first function on, if one of the
-functions returns `Nothing`, that is passed on to the end.
-
-There is one very tricky thing about `parseP5_take2`, though. In
-`parseP5`, the parsed integer values (`width`, `height`, and
-`maxGrey`) are stored in the closures of successive function calls. At
-first impression, the same thing should happen within parseP5_take2,
-since there is no explicit management of these variables, but the
-indentation tells us that the lambdas are what get chained. But these
-lambdas have separate function contexts, so how are they supposed to
-contribute to the common closure? They can't and they don't; it's not
-the lambdas that are getting chained, but the function calls within
-the lambdas. You can see this more clearly if you wrap one of the
-lambdas in paranthesis (e.g. the one on line 54) and try to compile
-again, which returns the following error:
+it to `getNat`. If there are no errors on the way, the execution of
+the chained functions built by the `parseP5_take2` method follows from
+top to bottom in a wrapped fashion. That is, the last line is the
+outermost function application. There is one very tricky thing about
+`parseP5_take2`, though. In `parseP5`, the parsed integer values
+(`width`, `height`, and `maxGrey`) are stored in the closures of
+successive function calls. At first impression, the same thing should
+happen within parseP5_take2, since there is no explicit management of
+these variables, but the indentation tells us that the lambdas are
+what get chained. But these lambdas have separate function contexts,
+so how are they supposed to contribute to the common closure? They
+can't and they don't; it's not the lambdas that are getting chained,
+but the function calls within the lambdas. You can see this more
+clearly if you wrap one of the lambdas in paranthesis (e.g. the one on
+line 54) and try to compile again, which returns the following error:
 
 ```
 $ ghc pgm2.hs
@@ -253,15 +252,11 @@ Since the second variation does not really solve the problem of
 encapsulating parse state, and is also misguiding in the way it's
 built, time for a third variation. From this point on, things get a
 bit weird. The third example uses rather convoluted code to insinuate
-at the idea of functors, which doesn't really work. This leads to code
-that's difficult to understand at a syntactic level, and even if you
-understand it, doesn't make sense at a functional level. For this
-reason, and to keep my sanity, I have refrained from going too deep
-down the rabbit hole.
-
-In the third variation, the parse state is packed inside the type
-`ParseState` that contains the complete `ByteString` and the current
-offset:
+at certain ideas, which doesn't really work. This leads to code that's
+difficult to understand at a syntactic level, and even if you
+understand it, doesn't make sense at a functional level. In the third
+variation, the parse state is packed inside the type `ParseState` that
+contains the complete `ByteString` and the current offset:
 
 ```haskell
 data ParseState = ParseState {
@@ -275,8 +270,9 @@ be parsed and the offset set to 0, returning an `Either String (a,
 ParseState)`. The question is how to encapsulate the parsing
 steps. The authors use a newtype declaration to achieve this. This is
 a surprise move, as there was no example of putting a function inside
-a newtype constructor, and it is one of the ???. Here's a sample that
-you can copy-paste into ghci to help you understand it:
+a newtype constructor, and it is one of the things I don't really get,
+even after writing this walk-through. Here's a sample that you can
+copy-paste into ghci to help you at least get thebasic idea:
 
 ```haskell
 newtype IntOperation a = IntOperation { process :: a -> Either String a }
@@ -284,7 +280,7 @@ newtype IntOperation a = IntOperation { process :: a -> Either String a }
 let multiplier limit = IntOperation $ \arg -> if arg > limit then (Left "Int too big") else Right (arg * 10)
 ```
 
-If you then run `(process (multiplier 2)) 5` in ghci, you should see
+If you then run `process (multiplier 2) 5` in ghci, you should see
 the output `Left "Int too big"`. `IntOperation` is simply a wrapper
 around a lambda passed in with the `process` parameter. This lambda,
 together with the wrapping `IntOperation`, can be created using
@@ -376,7 +372,7 @@ message, the output of `chainedParser` is also an error message. If
 the result is `Right (firstResult, newState)`, the `secondParser` is
 initialized with `firstResult`, and called with `newState`. The main
 difficulty in understanding this function stems from `firstParser` and
-`secondParsers` having names that imply they are of the same kind, but
+`secondParser` having names that imply they are of the same kind, but
 they actually aren't. `firstParser` is `Parse a`, whereas
 `secondParse` is `a -> Parse b`, i.e. a factory that produces a
 `Parser`.
@@ -443,7 +439,7 @@ single argument `initState`, is run with the first slot of the tuple,
 the initial state. This lambda takes the `ByteString` and uncons's it
 using
 [`Data.ByteString.Lazy.uncons`](https://hackage.haskell.org/package/bytestring-0.9.2.1/docs/Data-ByteString-Lazy.html#v:uncons)
--- that is, splits head and tail. If there was no data, `bail` is
+-- that is, splits head and tail. If there is no data, `bail` is
 called. Otherwise, another chain is created using `==>`. This one
 involves `putState` and another lambda. As we already know, `putState`
 takes whatever it was given, and creates a `Parse` that returns a
@@ -466,8 +462,8 @@ Right (byte, newState)
 We end up with the remainder from the `uncons` operation and a new
 incremented offset in a `ParseState`, and the parsed byte. `pgm3.hs`
 tells me that the first byte of `test.pgm` is 80 when I run it. What
-is relevant for the rest of the chapter is that `identity`, when used
-as the second argument of `==>`, serves to pack the output of the
+is most relevant for the rest of the chapter is that `identity`, when
+used as the second argument of `==>`, serves to pack the output of the
 first argument, as `==>` passes it in opaquely through a closure. When
 another `Parse` is chained, it will get exactly the same arguments
 that were packed into `identity`.
@@ -517,7 +513,7 @@ fmap (f . g)  ==  fmap f . fmap g
 
 And now for the fourth iteration of the PGM parser using functors. You
 can find the code for this iteration in `pgm4.hs`. The relevant bits
-from earlier iterations have been copied in for you convenience. For
+from earlier iterations have been copied in for your convenience. For
 this iteration, `Parse` is turned into a functor, and then chained
 using a new combination operator. The functor instance definition is
 as follows:
@@ -544,7 +540,7 @@ parse ((f . g) <$> parseByte) input == parse (f <$> g <$> parseByte) input
 ```
 
 Once we have the functor definition for `Parse` nailed, we can
-discover the possibilities offered by its application. For beginners,
+discover the possibilities offered by its application. For starters,
 instead of duplicating code, we can use `parseByte` to define a
 `parseChar`:
 
@@ -558,9 +554,9 @@ parseChar = w2c <$> parseByte
 
 Parsing a character is simply turning a `Word8` to its character value
 using
-[`Data.Char.chr`](http://hackage.haskell.org/package/base-4.8.0.0/docs/Data-Char.html#v:chr). A
-more complicated application is peeking inside a `Parser` to read the
-first byte or character:
+[`Data.Char.chr`](http://hackage.haskell.org/package/base-4.8.0.0/docs/Data-Char.html#v:chr).
+A more complicated application is peeking inside a `Parser` to read
+the first byte or character:
 
 ```haskell
 peekByte :: Parse (Maybe Word8)
@@ -640,10 +636,10 @@ thing to note is the hack of checking for integer overflow by looking
 at whether the value is negative. `Int` is a signed integer, and on
 most platforms, overflow causes it to become negative because the sign
 bit is modified. An interesting point is how the collected digits are
-converted to `Int`. The digits are characters, and a list of charcters
-is a string, which can be parsed as an `Int` simply by `read`ing
-it. We don't have to tell the compiler which type we want to have it
-as, because the context makes it clear.
+converted to `Int`. The digits are characters, and a list of
+characters is a string, which can be parsed as an `Int` simply by
+`read`ing it. We don't have to tell the compiler which type we want to
+have it as, because the context makes it clear.
 
 With that, we can build the next version of our parser, which
 unfortunately doesn't look nice:

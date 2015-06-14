@@ -1,10 +1,10 @@
+import Common (Greymap(..))
 import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Data.ByteString.Lazy as L
 import Data.Char
 import Data.Int (Int64)
 import System.Environment
 import Data.Word (Word8)
-import Common (Greymap(..))
 import Control.Applicative ((<$>))
 
 -- the common stuff
