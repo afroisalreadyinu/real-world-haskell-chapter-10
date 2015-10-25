@@ -7,8 +7,10 @@ convoluted code examples that in some cases don't even run. Also, it
 is full of leaky abstractions that don't work as expected (deceptive
 chaining of lambdas, newtype as a container of stateful behavior,
 fmaps that have to be doubled etc.) that are still important for the
-rest of the book. This post is attempted as an understanding aid for
-that chapter, for me and for Haskell beginners who get stuck in it.
+rest of the book. In fact, most of the weird things turn out to be
+concepts introduced in later chapters, such as the bind operator of
+monads. This post is attempted as an understanding aid for Chapter 10,
+for me and for Haskell beginners who get stuck in it.
 
 Chapter 10 uses as example the parsing of [PGM (portable grey
 map)](http://en.wikipedia.org/wiki/Netpbm_format) files. A sample file
