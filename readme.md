@@ -26,13 +26,13 @@ editor:
 The last row is binary data that specifies greyscale values for
 individual pixels. The representation of a parsed PGM image generated
 by the example parsers in this chapter is straightforward; a data type
-named Greymap with fields grepWidth, greyHeight, greyMax and greyData
-is used. In order to represent such an image properly on the console,
-the `Show` interface of a Greymap is implemented to print size and
-maximum greyscale information. Since the Greymap data type is used by
-all code examples, it is included in this repo in the file `common.hs`
-imported by the other files. Here is the Greymap definition from that
-file:
+named `Greymap` with fields `grepWidth`, `greyHeight`, `greyMax` and
+`greyData` is used. In order to represent such an image properly on
+the console, the `Show` interface of a Greymap is implemented to print
+size and maximum greyscale information. Since the `Greymap` data type
+is used by all code examples, it is included in this repo in the file
+`common.hs` imported by the other files. Here is the `Greymap`
+definition from that file:
 
 ```haskell
 data Greymap = Greymap {
@@ -49,7 +49,7 @@ instance Show Greymap where
 
 Given a file in PGM format, how should we read it into memory? Since
 the file contains mostly binary data, we can't (or shouldn't) use the
-Prelude methods that read a file into a string. Instead, we should
+Prelude methods that read a file into a `String`. Instead, we should
 read the file contents into a
 [`Data.ByteString.Lazy.ByteString`](https://hackage.haskell.org/package/bytestring-0.9.1.5/docs/Data-ByteString-Lazy.html#t:ByteString).
 The methods to do that, and also many other methods to deal with
@@ -57,7 +57,7 @@ binary data, are in two modules:
 [`Data.ByteString.Lazy.Char8`](https://hackage.haskell.org/package/bytestring-0.9.1.7/docs/Data-ByteString-Lazy-Char8.html)
 and
 [`Data.ByteString.Lazy`](https://hackage.haskell.org/package/bytestring-0.9.2.1/docs/Data-ByteString-Lazy.html).
-These are imported as L8 and L, respectively, to avoid excessive
+These are imported as `L8` and `L`, respectively, to avoid excessive
 typing.
 
 ## Linear parsing
