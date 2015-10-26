@@ -711,7 +711,11 @@ but simply omits the result of the first `Parse`, feeding only the
 resulting `ParseState`. The second argument to the `==>&` operator
 thus should be an initialized `Parse` and not a factory. It receives
 the `ParseState` that came out of the first one when run with
-`runParse`. There are three more helper functions that either use this
+`runParse`. Once more, this is a monadic function that will pop up in
+the relevant chapter; namely the `>>` function that ignores value of
+the first monad.
+
+There are three more helper functions that either use this
 new combination operator or are arguments to it. The first,
 `skipSpaces`, keeps on reading from a `ByteString` as long as it's a
 space character. The result is dismissed, and the final `ParseState`
