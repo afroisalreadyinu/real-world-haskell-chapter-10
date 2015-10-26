@@ -174,10 +174,15 @@ Nothing >>? _ = Nothing
 Just v  >>? f = f v
 ```
 
-Observe that this is an infix function, and it's left-associative like
-any other function, so `a >>? b >>? c` is equivalent to `(a >>?  b)
->>? c`. The parsing function that uses this combination operator looks
-like this:
+This is the `bind` function of monads, as a student of Haskell will
+see right away once she come to the relevant chapter. The standard
+infix operator for it is `>>=`. Why the authors introduce it without
+the relevant context is beyond me.
+
+Observe that `>>?` is an infix function, and it's left-associative
+like any other function, so `a >>? b >>? c` is equivalent to `(a >>?
+b) >>? c`. The parsing function that uses this combination operator
+looks like this:
 
 ```haskell
 parseP5_take2 :: L.ByteString -> Maybe (Greymap, L.ByteString)
@@ -195,8 +200,13 @@ parseP5_take2 s =
 ```
 
 This is from the file `pgm2.hs`, which you can compile and run, as
-with `pgm1.hs`, on `test.pgm`. A method `skipSpace` had to be added to
-account for the clean up done within the original parseP5 function:
+with `pgm1.hs`, on `test.pgm`. As the reader continues with the book,
+she will find out that this method of chaining monadic functions is
+very common, and there is syntactic support for it in Haskell in the
+form of `do` blocks.
+
+A method `skipSpace` had to be added to account for the clean up done
+within the original parseP5 function:
 
 ```haskell
 skipSpace :: (a, L.ByteString) -> Maybe (a, L.ByteString)
@@ -300,12 +310,13 @@ Haskell being a functional language, this same thing could have been
 achieved using a simple closure. The only advantage of this
 formulation is that new types can be created only using the `Parse`
 constructor; using a function, one would have to declare a function
-type such as `ParseState -> Either String (Int, ParseState)`. The big
-mystery for me here was what the heck the `a` argument here is -- one
-point where the Haskell pattern of single-letter argument names
-fails. The use of the `Parse` type in the parsers that follow in this
-chapter reveal that `a` stands for the output of the previous parsing
-step, such as an int or a byte.
+type such as `ParseState -> Either String (Int, ParseState)`. Also,
+the destruction of the `Parse` constructor can be avoided by exporting
+only the type constructor. The big mystery for me here was what the
+heck the `a` argument here is -- one point where the Haskell pattern
+of single-letter argument names fails. The use of the `Parse` type in
+the parsers that follow in this chapter reveal that `a` stands for the
+output of the previous parsing step, such as an int or a byte.
 
 A sample parser where we can see the Parser type in action is the
 identity parser which returns whatever it is given. Here are the
