@@ -282,9 +282,13 @@ be parsed and the offset set to 0, returning an `Either String (a,
 ParseState)`. The question is how to encapsulate the parsing
 steps. The authors use a newtype declaration to achieve this. This is
 a surprise move, as there was no example of putting a function inside
-a newtype constructor, and it is one of the things I don't really get,
-even after writing this walk-through. Here's a sample that you can
-copy-paste into ghci to help you at least get thebasic idea:
+a newtype constructor, and it is one of the things I don't really
+get. The role of this pattern in monadic Haskell code becomes clear
+only once similar monads such as `State` or `Reader` are
+introduced.
+
+Here's a sample that you can copy-paste into ghci to help
+you at least get the basic idea:
 
 ```haskell
 newtype IntOperation a = IntOperation { process :: a -> Either String a }
@@ -390,6 +394,10 @@ they actually aren't. `firstParser` is `Parse a`, whereas
 `secondParse` is `a -> Parse b`, i.e. a factory that produces a
 `Parser`.
 
+The `==>` operator is yet another form of the bind function on monads,
+introduced in later chapters. Why yet another syntax is necessary for
+a topic whose time has not come is a decision best left unexplained.
+
 Now let's look at the actual parser from the third example that uses
 the above tools:
 
@@ -429,7 +437,9 @@ a `Parse`? It just creates a tuple!", and you would be right. The
 reason for this convoluted way of presenting a `ParseState` will be
 understandable when `Parse` gets to act as a functor, so that we can
 use instances including `getState` to encapsulate parsing logic and
-chain it with others.
+chain it with others. `getState` is also a primitive implementation of
+the `return` function of a monad, especially of the kind similar to
+`State` or `Reader`.
 
 `putState` returns unity and the parse state as a result:
 
